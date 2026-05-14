@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 
@@ -64,8 +65,30 @@ PLAYER_CLASS_NAME = "Player"
 # Roboflow Basketball Players v25: Player is index 3
 PLAYER_CLASS_ID = 3
 
+# Inference-time cleanup (broadcast / multi-class head). See docs/player_detection_cleanup.md
+PLAYER_PREDICT_CONF = 0.50
+PLAYER_PREDICT_IOU = 0.45
+PLAYER_PREDICT_MAX_DET = 30
+# Zero-fill bottom fraction of the frame for player inference only (do not crop).
+HUD_MASK_BOTTOM_PCT = 0.13
+# Normalized image polygon (0–1); foot point must lie inside. Empty = disabled.
+COURT_ROI_POLYGON_NORM: list[tuple[float, float]] = []
+# Optional JSON override: {"polygon_norm": [[x,y], ...]} — used if file exists and has ≥3 vertices.
+COURT_ROI_JSON_PATH: Optional[str] = None
+
+# Post-tracking: greedy Player-only merge (same-frame duplicate boxes). 0 = off.
+PLAYER_GREEDY_MERGE_IOU = 0.50
+# Same-frame dedup when two ByteTrack ids overlap heavily; 0 = off.
+PLAYER_TRACK_FRAME_DEDUP_IOU = 0.65
+
+# Saved demo overlays (predict_clean / predict_track)
+PLAYER_BOX_LINE_WIDTH = 2
+# Per-track box-corner EMA in predict_track only; 1.0 = off. Prefer 0.2–0.95 (do not go below 0.2 — visible lag).
+PLAYER_BOX_EMA_ALPHA = 1.0
+PLAYER_BOX_EMA_STALE_FRAMES = 30
+
 # --- Tracking ---
-TRACKER_CFG = "bytetrack.yaml"
+TRACKER_CFG = "bytetrack.yaml"  # ByteTrack YAML shipped with Ultralytics
 
 # --- Inference UX ---
 DEBUG_OVERLAY = False

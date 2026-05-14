@@ -19,7 +19,12 @@ python -m src.sample_pose_frames --help
 python -m src.train_court_pose --help
 python -m src.validate_pose_dataset --help
 python -m src.infer_spatial --help
+python -m src.predict_clean --help
+python -m src.predict_track --help
+python -m src.export_player_only_dataset --help
 ```
+
+Player-only inference defaults, ROI JSON, track-ID caveats, and export/train for `nc: 1` are documented in [`docs/player_detection_cleanup.md`](docs/player_detection_cleanup.md).
 
 ## Datasets
 
@@ -128,6 +133,8 @@ python -m src.infer_spatial \
 
 CSV columns: `frame_idx, track_temp_id, x_ft, y_ft, player_conf, homography_conf, num_visible_kpts`.
 
+**Player inference cleanup** (HUD bottom zero-mask, `conf` / `iou`, optional court ROI polygon, greedy merge, track dedup) is configured in [`src/config.py`](src/config.py); see [`docs/player_detection_cleanup.md`](docs/player_detection_cleanup.md).
+
 **Tracker reset:** ByteTrack IDs reset when **scene-cut** fires **and** registration fails that frame (`HomographyStateMachine.should_reset_tracker`). TTL alone does not force ID reset.
 
 ## Failure modes (visual symptoms)
@@ -155,7 +162,12 @@ See plan: ground-plane + bbox foot proxy, center-zoom point starvation, radial d
 | `src/device_utils.py` | `mps` → `cuda` → `cpu` |
 | `src/court_registrar.py` | Court pose inference |
 | `src/homography_state.py` | Ranked solve, quality, EMA anchors, TTL, scene cut |
-| `src/player_tracker.py` | Player YOLO + ByteTrack |
+| `src/player_tracker.py` | Player YOLO + ByteTrack + HUD mask / conf / iou / ROI / merge / dedup |
+| `src/broadcast_preprocess.py` | HUD zero-fill, ROI polygon, IoU helpers |
+| `src/predict_clean.py` | Player-only `predict` + no overlay text (still per-frame jitter) |
+| `src/predict_track.py` | ByteTrack `track` + clean boxes; optional EMA for extra smoothness |
+| `src/export_player_only_dataset.py` | Export `nc: 1` Player-only labels + `dataset.yaml` |
+| `docs/player_detection_cleanup.md` | Inference flags, ROI schema, limitations |
 | `src/spatial_projector.py` | Bbox bottom-center → court ft |
 | `src/infer_spatial.py` | CLI orchestration |
 | `src/train_player.py` | Train bbox |
