@@ -1,60 +1,69 @@
-# Team colour classification (v3.0)
+# Team colour classification (v3.2)
 
-Warm-up calibration discovers the two jersey colour clusters for each clip, then classifies every player by nearest centroid. No hardcoded saturation threshold.
+Warm-up collects **quality-gated** colour samples (on-court foot point, min confidence, min box height), builds **pale vs saturated** centroids, validates separation, then classifies by nearest centroid with voting, hysteresis, and label lock.
 
-## Pipeline
+## Phases
 
-1. ByteTrack + optional foot dedup (`predict_track`)
-2. `TeamClassifier.update(frame, xyxy, ids)` on the **original** frame (not HUD-masked)
-3. Draw: team 0 → red, team 1 → blue, unknown/warm-up → grey
+| Phase | On screen | Behaviour |
+|-------|-----------|-----------|
+| WARMUP | Grey + countdown | Collect samples only on **quality frames** until `_quality_frames_seen >= WARMUP_FRAMES` |
+| CALIBRATING | Grey (1 frame) | Outlier filter, pale/sat or K-Means, **centroid separation check**; may extend warm-up |
+| LOCKED | Red / blue | Classify only players whose **foot point** is inside court ROI (when enabled) |
 
-## Three phases
+`WARMUP_MAX_RAW_FRAMES`: safety cap; if hit, calibration is **forced** (may use fallback centroids if enabled).
 
-| Phase | Frames | On screen | What happens |
-|-------|--------|-----------|--------------|
-| WARMUP | 0 … `WARMUP_FRAMES`-1 | All boxes **grey** + countdown overlay | Collect (H,S) from four-slice crops; **no** team labels |
-| CALIBRATING | 1 frame | Grey | K-Means K=2 on all pooled samples; console prints centroids |
-| LOCKED | Rest of clip | **Red / blue** | Nearest-centroid + `TEAM_HISTORY_LEN` majority vote |
+## Court ROI (fan / bench rejection)
 
-In `predict_track`, team centroids stay locked for the whole clip (camera cuts do not reset colours). Scene-cut reset applies only in `infer_spatial` (homography pipeline).
+Use **normalized** polygon (0–1), same as the spatial player path:
 
-## Four-slice geometry
+- [`COURT_ROI_POLYGON_NORM`](../src/config.py) — list of `(x_norm, y_norm)` vertices, **clockwise or CCW**, ≥3 points.
+- Or [`COURT_ROI_JSON_PATH`](../src/config.py) — JSON `{"polygon_norm": [[x,y], ...]}` in **normalized** coordinates.
 
-Slices 1+2 (25%–75% of box height) stacked; slices 0 and 3 discarded. See `--debug-slices` in `predict_track`.
+`TEAM_COURT_ROI_ENABLE = True` with an empty polygon disables foot gating (all boxes pass).
 
-## Config (`src/config.py`)
+Resolve helper: [`broadcast_preprocess.resolve_court_roi_polygon_norm()`](../src/broadcast_preprocess.py).
 
-| Parameter | Default | Purpose |
-|-----------|---------|---------|
-| `WARMUP_FRAMES` | 45 | Samples collected before K-Means (~1.5s @ 30fps) |
-| `MIN_BOX_HEIGHT` | 40 | Skip tiny / distant boxes |
-| `MIN_SLICE_PIXELS` | 20 | Skip empty crops |
-| `TEAM_HISTORY_LEN` | 20 | Majority vote window per track ID |
-| `KMEANS_ATTEMPTS` | 10 | K-Means restarts at calibration |
-| `KMEANS_ITER` | 20 | K-Means iterations |
-| `TEAM_HUE_WEIGHT` | 2.0 | Hue emphasis in centroid distance |
+To calibrate from pixel clicks on a `W×H` frame: convert each corner to `(x/W, y/H)` and paste into config or JSON.
 
-## Tuning
+## Key config (`src/config.py`)
 
-| Symptom | Adjust |
-|---------|--------|
-| Grey too long at start | Lower `WARMUP_FRAMES` (e.g. 20) |
-| Wrong centroids (check console H/S) | Raise `WARMUP_FRAMES` (60–90) or `KMEANS_ATTEMPTS` |
-| Flip after lock | Raise `TEAM_HISTORY_LEN` |
-| New player slow to colour | Lower `TEAM_HISTORY_LEN` |
-| Distant players always grey | Lower `MIN_BOX_HEIGHT` |
-
-Hue guide: H≈0/170 red, H≈110 blue, low S white/grey.
+| Parameter | Default | Role |
+|-----------|---------|------|
+| `TEAM_SLICE_MODE` | `stacked` | `upper_only` (torso) or `stacked` (torso + waist/shorts) |
+| `WARMUP_FRAMES` | 120 | Target **quality** frame count |
+| `WARMUP_MIN_PLAYERS` | 8 | Min on-court valid detections to count a quality frame |
+| `TEAM_WARMUP_MIN_BOX_CONF` | 0.50 | Min detector confidence for warm-up samples |
+| `TEAM_WARMUP_MIN_BOX_HEIGHT` | 80 | Min box height (px) for warm-up samples |
+| `TEAM_COURT_ROI_ENABLE` | True | Foot-in-polygon gate when polygon has ≥3 vertices |
+| `TEAM_CALIB_IQR_*` | — | Saturation IQR outlier trim when sample count is high |
+| `TEAM_FILTER_COURT_*` | — | Drop warm-up samples in orange-brown floor hue band |
+| `TEAM_CENTROID_MIN_S_SEP` / `MIN_H_SEP` | 15 / 20 | Reject calibration if centroids too close (extend warm-up) |
+| `TEAM_PALE_S_THRESHOLD` | 55 | S below → pale pool |
+| `TEAM_CENTROID_MARGIN` | 10 | Min distance gap to append to vote history |
+| `TEAM_FLIP_MARGIN` | 0.60 | Hysteresis to flip team |
+| `TEAM_LOCK_AFTER_FRAMES` | 10 | Lock team per track ID |
+| `TEAM_USE_INSTANT_DISPLAY` | True | Show nearest-centroid label while voting |
 
 ## CLI
 
 ```bash
 python -m src.predict_track --model path/to/best.pt --source "okc vs lal.mp4" --out out.mp4
-python -m src.predict_track ... --warmup-frames 60 --debug-slices --debug-team
+python -m src.predict_track ... --debug-team --debug-slices
+python -m src.predict_track ... --debug-team-crops runs/debug_crops --warmup-frames 120
 ```
+
+`--warmup-frames` overrides `WARMUP_FRAMES` (quality targets).
+
+## Tuning
+
+| Symptom | Try |
+|---------|-----|
+| Fans/refs in warm-up | Set `COURT_ROI_POLYGON_NORM` / JSON for this camera; keep `TEAM_WARMUP_MIN_BOX_CONF` ≥ 0.5 |
+| Never finishes warm-up | Loosen `WARMUP_MIN_PLAYERS`, lower `TEAM_WARMUP_MIN_BOX_HEIGHT`, or verify ROI is not too tight |
+| “centroids too close” loop | Widen ROI, lower `TEAM_CALIB_IQR_*` aggressiveness, or adjust `TEAM_PALE_S_THRESHOLD` |
+| White jerseys read too saturated | Try `TEAM_SLICE_MODE = "upper_only"` or tune `TEAM_PALE_S_THRESHOLD` |
+| Flicker | Raise `TEAM_CENTROID_MARGIN`, `TEAM_FLIP_MARGIN`, `TEAM_LOCK_AFTER_FRAMES` |
 
 ## Limits
 
-- Fewer than two usable samples during warm-up defers calibration (stays in WARMUP).
-- Nearly identical jersey colours need retraining with team labels, not colour heuristics.
-- Replays / cuts restart warm-up (grey boxes) by design.
+Identical jersey colours or weak broadcast colour need clip hints, re-ID, or retrained team heads (future).

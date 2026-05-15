@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
-
 import numpy as np
 import torch
 from ultralytics import YOLO
@@ -62,17 +60,7 @@ class PlayerTracker:
     def __init__(self, weights_path: str, device: str) -> None:
         self.model = YOLO(weights_path)
         self.device = device
-        self._roi_poly_norm = self._resolve_roi_polygon_norm()
-
-    def _resolve_roi_polygon_norm(self) -> list[tuple[float, float]]:
-        jp = config.COURT_ROI_JSON_PATH
-        if jp:
-            p = Path(jp)
-            if p.is_file():
-                loaded = bp.load_polygon_norm_from_json(p)
-                if len(loaded) >= 3:
-                    return loaded
-        return list(config.COURT_ROI_POLYGON_NORM)
+        self._roi_poly_norm = bp.resolve_court_roi_polygon_norm()
 
     @torch.inference_mode()
     def track(

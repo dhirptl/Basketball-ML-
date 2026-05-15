@@ -64,6 +64,20 @@ def bbox_iou_xyxy(a: np.ndarray, b: np.ndarray) -> float:
     return inter / union
 
 
+def resolve_court_roi_polygon_norm() -> list[tuple[float, float]]:
+    """Load normalized court polygon from JSON path in config, else ``COURT_ROI_POLYGON_NORM``."""
+    from . import config
+
+    jp = config.COURT_ROI_JSON_PATH
+    if jp:
+        p = Path(jp)
+        if p.is_file():
+            loaded = load_polygon_norm_from_json(p)
+            if len(loaded) >= 3:
+                return loaded
+    return list(config.COURT_ROI_POLYGON_NORM)
+
+
 def load_polygon_norm_from_json(path: Path | str) -> list[tuple[float, float]]:
     """Load ``polygon_norm`` from a JSON file. Schema: ``{\"polygon_norm\": [[x,y], ...]}``."""
     p = Path(path)

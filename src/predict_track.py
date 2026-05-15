@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ByteTrack export: foot dedup, v3 warm-up team colours, optional EMA and debug overlays."""
+"""ByteTrack export: foot dedup, v3.2 team colours (ROI + quality warm-up), optional EMA and debug overlays."""
 
 from __future__ import annotations
 
@@ -99,6 +99,13 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help=f"Override WARMUP_FRAMES (default {config.WARMUP_FRAMES})",
     )
+    p.add_argument(
+        "--debug-team-crops",
+        type=str,
+        default=None,
+        metavar="DIR",
+        help="Save sample torso crops during warm-up to this directory",
+    )
     args = p.parse_args(argv)
 
     model_path = Path(args.model)
@@ -123,8 +130,11 @@ def main(argv: list[str] | None = None) -> int:
     imgsz = int(config.PLAYER_IMGSZ)
     foot_active = bool(config.PLAYER_FOOT_DEDUP_ENABLE and float(config.FOOT_DEDUP_DIST_PX) > 0.0)
     team_enabled = bool(config.TEAM_CLASSIFIER_ENABLE)
+    crops_dir = Path(args.debug_team_crops) if args.debug_team_crops else None
     team_clf = (
-        TeamClassifier(warmup_frames=args.warmup_frames) if team_enabled else None
+        TeamClassifier(warmup_frames=args.warmup_frames, debug_crops_dir=crops_dir)
+        if team_enabled
+        else None
     )
     debug_slices = bool(args.debug_slices)
     debug_team = bool(args.debug_team)
@@ -195,21 +205,24 @@ def main(argv: list[str] | None = None) -> int:
             )
 
         if team_clf is not None and id_arr is not None and len(xyxy) > 0:
-            team_clf.update(frame, xyxy, id_arr)
+            team_clf.update(frame, xyxy, id_arr, confs)
             if debug_team and frame_idx % 30 == 0:
-                phase = team_clf.phase.name
                 cent = team_clf.centroids
                 cent_s = (
-                    f"A=({cent[0][0]:.0f},{cent[0][1]:.0f}) B=({cent[1][0]:.0f},{cent[1][1]:.0f})"
+                    f"team0=({cent[0][0]:.0f},{cent[0][1]:.0f}) team1=({cent[1][0]:.0f},{cent[1][1]:.0f})"
                     if cent is not None
                     else "n/a"
                 )
-                print(f"frame={frame_idx} phase={phase} centroids={cent_s}")
+                print(f"frame={frame_idx} phase={team_clf.phase.name} centroids={cent_s}")
                 for i in range(len(xyxy)):
                     tid = int(id_arr[i])
                     dbg = team_clf.get_debug_info(tid)
                     if dbg:
-                        print(f"  id={tid} {dbg}")
+                        print(
+                            f"  id={tid} H={dbg.get('H')} S={dbg.get('S')} "
+                            f"da={dbg.get('dist_a')} db={dbg.get('dist_b')} "
+                            f"lbl={dbg.get('frame_label')} conf={dbg.get('confident')} team={dbg.get('team')}"
+                        )
 
         use_manual = foot_active or (use_ema and id_arr is not None) or team_enabled
 

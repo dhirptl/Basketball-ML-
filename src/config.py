@@ -84,21 +84,49 @@ PLAYER_GREEDY_MERGE_IOU = 0.50
 # Same-frame dedup when two ByteTrack ids overlap heavily; 0 = off.
 PLAYER_TRACK_FRAME_DEDUP_IOU = 0.65
 
-# --- Team colour classifier v3.0 (warm-up calibration + four-slice) ---
+# Team colour classifier v3.2 (warm-up + pale/saturated + court ROI + quality warm-up)
 TEAM_CLASSIFIER_ENABLE = True
-TEAM_A_COLOUR = (0, 0, 220)  # BGR red box — team 0
-TEAM_B_COLOUR = (220, 0, 0)  # BGR blue box — team 1
-UNKNOWN_TEAM_COLOUR = (160, 160, 160)  # grey during warm-up / unclassified
-WARMUP_FRAMES = 45
+TEAM_A_COLOUR = (0, 0, 220)  # BGR red box — team 0 (pale / white jersey)
+TEAM_B_COLOUR = (220, 0, 0)  # BGR blue box — team 1 (saturated / coloured jersey)
+UNKNOWN_TEAM_COLOUR = (160, 160, 160)
+# When TEAM_COURT_ROI_ENABLE and polygon has ≥3 vertices (config or JSON), foot point must be inside for samples/classify.
+TEAM_COURT_ROI_ENABLE = True
+WARMUP_FRAMES = 120  # quality frames (see below), not raw frame count
+WARMUP_SKIP_INITIAL_FRAMES = 15
+WARMUP_MIN_PLAYERS = 8
+WARMUP_MAX_RAW_FRAMES = 9000  # safety: force calibration attempt; see team_classifier
+WARMUP_MAX_SAMPLES_PER_FRAME = 6
+TEAM_WARMUP_MIN_BOX_CONF = 0.50
+TEAM_WARMUP_MIN_BOX_HEIGHT = 80.0
+TEAM_WARMUP_BALANCE_SAMPLES = True
 MIN_BOX_HEIGHT = 40
 MIN_SLICE_PIXELS = 20
 TEAM_MIN_BOX_WIDTH_PX = 10
+TEAM_SLICE_MODE = "stacked"  # upper_only | stacked (torso + waist/shorts)
+TEAM_PALE_S_THRESHOLD = 55.0
+TEAM_S_MIN_FOR_HUE = 15.0
 TEAM_HISTORY_LEN = 20
+TEAM_CENTROID_MARGIN = 10.0
+TEAM_FLIP_MARGIN = 0.60
+TEAM_LOCK_AFTER_FRAMES = 10
+TEAM_USE_INSTANT_DISPLAY = True
 KMEANS_ATTEMPTS = 10
 KMEANS_ITER = 20
-TEAM_DRAW_TRACK_ID = True
-# Circular hue weight in (H,S) centroid distance (0 = Euclidean on raw H,S)
 TEAM_HUE_WEIGHT = 2.0
+TEAM_DRAW_TRACK_ID = True
+TEAM_AUTO_ANCHOR_PALER_TO_A = True
+# Calibration outlier / sanity (HSV: H 0–179 OpenCV)
+TEAM_CALIB_IQR_MIN_SAMPLES = 20
+TEAM_CALIB_IQR_PCT_LOW = 15.0
+TEAM_CALIB_IQR_PCT_HIGH = 85.0
+TEAM_CALIB_IQR_FACTOR = 1.5
+TEAM_FILTER_COURT_HUE_MIN = 10.0
+TEAM_FILTER_COURT_HUE_MAX = 25.0
+TEAM_FILTER_COURT_S_MAX = 70.0  # drop pixels in hue band with S below this (floor bleed)
+TEAM_CENTROID_MIN_S_SEP = 15.0
+TEAM_CENTROID_MIN_H_SEP = 20.0  # min circular hue separation (degrees)
+TEAM_CALIB_REJECT_LOG_EVERY = 10  # log extended-warmup every N rejects (0 = every time)
+TEAM_CALIB_FALLBACK_CENTROIDS = True  # when WARMUP_MAX_RAW_FRAMES forces calib with too few samples
 
 # Saved demo overlays (predict_clean / predict_track)
 PLAYER_BOX_LINE_WIDTH = 2
