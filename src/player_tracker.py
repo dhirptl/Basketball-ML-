@@ -9,6 +9,7 @@ import numpy as np
 import torch
 from ultralytics import YOLO
 
+from . import box_dedup
 from . import broadcast_preprocess as bp
 from . import config
 
@@ -103,6 +104,7 @@ class PlayerTracker:
             conf=config.PLAYER_PREDICT_CONF,
             iou=config.PLAYER_PREDICT_IOU,
             max_det=config.PLAYER_PREDICT_MAX_DET,
+            imgsz=int(config.PLAYER_IMGSZ),
         )
         out: list[TrackedPlayer] = []
         if not results:
@@ -112,8 +114,18 @@ class PlayerTracker:
             return out
         xyxy = r0.boxes.xyxy.detach().cpu().numpy()
         confs = r0.boxes.conf.detach().cpu().numpy() if r0.boxes.conf is not None else np.ones(len(xyxy))
-        ids = r0.boxes.id
-        if ids is None:
+        id_arr: np.ndarray | None = (
+            r0.boxes.id.detach().cpu().numpy().astype(np.int64) if r0.boxes.id is not None else None
+        )
+        if (
+            config.PLAYER_FOOT_DEDUP_ENABLE
+            and float(config.FOOT_DEDUP_DIST_PX) > 0.0
+            and len(xyxy) >= 2
+        ):
+            xyxy, confs, id_arr = box_dedup.filter_by_foot_dedup(
+                xyxy, confs, id_arr, float(config.FOOT_DEDUP_DIST_PX)
+            )
+        if id_arr is None:
             for i in range(len(xyxy)):
                 out.append(
                     TrackedPlayer(
@@ -123,7 +135,6 @@ class PlayerTracker:
                     )
                 )
         else:
-            id_arr = ids.detach().cpu().numpy().astype(np.int64)
             for i in range(len(xyxy)):
                 out.append(
                     TrackedPlayer(

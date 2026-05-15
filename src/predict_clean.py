@@ -41,6 +41,7 @@ def main(argv: list[str] | None = None) -> int:
         conf=conf,
         iou=iou,
         max_det=max_det,
+        imgsz=int(config.PLAYER_IMGSZ),
         device=device,
         save=args.save,
         verbose=True,

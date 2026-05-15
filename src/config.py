@@ -67,8 +67,11 @@ PLAYER_CLASS_ID = 3
 
 # Inference-time cleanup (broadcast / multi-class head). See docs/player_detection_cleanup.md
 PLAYER_PREDICT_CONF = 0.50
-PLAYER_PREDICT_IOU = 0.45
+PLAYER_PREDICT_IOU = 0.55
 PLAYER_PREDICT_MAX_DET = 30
+PLAYER_IMGSZ = 640
+FOOT_DEDUP_DIST_PX = 30.0
+PLAYER_FOOT_DEDUP_ENABLE = True
 # Zero-fill bottom fraction of the frame for player inference only (do not crop).
 HUD_MASK_BOTTOM_PCT = 0.13
 # Normalized image polygon (0–1); foot point must lie inside. Empty = disabled.
@@ -80,6 +83,22 @@ COURT_ROI_JSON_PATH: Optional[str] = None
 PLAYER_GREEDY_MERGE_IOU = 0.50
 # Same-frame dedup when two ByteTrack ids overlap heavily; 0 = off.
 PLAYER_TRACK_FRAME_DEDUP_IOU = 0.65
+
+# --- Team colour classifier v3.0 (warm-up calibration + four-slice) ---
+TEAM_CLASSIFIER_ENABLE = True
+TEAM_A_COLOUR = (0, 0, 220)  # BGR red box — team 0
+TEAM_B_COLOUR = (220, 0, 0)  # BGR blue box — team 1
+UNKNOWN_TEAM_COLOUR = (160, 160, 160)  # grey during warm-up / unclassified
+WARMUP_FRAMES = 45
+MIN_BOX_HEIGHT = 40
+MIN_SLICE_PIXELS = 20
+TEAM_MIN_BOX_WIDTH_PX = 10
+TEAM_HISTORY_LEN = 20
+KMEANS_ATTEMPTS = 10
+KMEANS_ITER = 20
+TEAM_DRAW_TRACK_ID = True
+# Circular hue weight in (H,S) centroid distance (0 = Euclidean on raw H,S)
+TEAM_HUE_WEIGHT = 2.0
 
 # Saved demo overlays (predict_clean / predict_track)
 PLAYER_BOX_LINE_WIDTH = 2
